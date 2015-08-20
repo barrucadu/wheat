@@ -10,6 +10,9 @@ module Data.Wheat
   , constant
   , lazyConstant
 
+  -- * Lists
+  , elementwise
+
   -- * Numbers
   , asciiDigits
 
@@ -59,6 +62,20 @@ lazyConstant c = (Decoder check, Encoder . const $ B.lazyByteString c) where
      in if c == pref
         then Just (c, suff)
         else Nothing
+
+-- * Lists
+
+-- | Lift a codec over a type to over a list of that type.
+--
+-- Encoded elements are concatenated. Decoding never fails, as an
+-- empty list is acceptable.
+elementwise :: Codec' d e -> Codec' [d] [e]
+elementwise (decoder, encoder) = (Decoder $ decodes [], Encoder encodes) where
+  decodes ds b = case runDecoder decoder b of
+    Just (d, b') -> decodes (d:ds) b'
+    Nothing -> Just (reverse ds, b)
+
+  encodes = foldMap $ runEncoder encoder
 
 -- * Numbers
 
