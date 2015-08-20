@@ -10,6 +10,7 @@
 -- types along with a function to split the whole.
 module Data.Wheat.Types where
 
+import Control.Arrow
 import Data.Functor.Contravariant
 import Data.Functor.Contravariant.Divisible
 import Data.Monoid
@@ -27,32 +28,35 @@ type Codec a = Codec' a a
 
 -- | A more general codec where we are covariant in the type we decode
 -- but contravariant in the type we encode.
-type Codec' a b = (Decoder a, Encoder b)
+type Codec' d e = (Decoder d, Encoder e)
 
 -- * Decoders
 
 -- | A decoder is a function which, given some input bytestring, will
--- attempt to decode it according to the construction of the decoder.
-newtype Decoder a = Decoder { runDecoder :: L.ByteString -> Maybe a }
+-- attempt to decode it according to the construction of the decoder
+-- and return any remaining input.
+newtype Decoder a = Decoder { runDecoder :: L.ByteString -> Maybe (a, L.ByteString) }
 
 instance Functor Decoder where
-  fmap f d = Decoder $ \b -> f <$> runDecoder d b
+  fmap f d = Decoder $ \b -> first f <$> runDecoder d b
 
 instance Applicative Decoder where
-  pure = Decoder . const . Just
+  pure a = Decoder . const $ Just (a, L.empty)
 
-  df <*> da = Decoder $ \b -> runDecoder df b <*> runDecoder da b
+  df <*> da = Decoder $ \b -> case runDecoder df b of
+    Just (f, b') -> first f <$> runDecoder da b'
+    Nothing -> Nothing
 
 instance Monad Decoder where
   return = pure
 
   d >>= f = Decoder $ \b -> case runDecoder d b of
-    Just a  -> runDecoder (f a) b
-    Nothing -> Nothing
+    Just (a, b') -> runDecoder (f a) b'
+    Nothing      -> Nothing
 
 -- | Run a codec's decoder.
-decode :: L.ByteString -> Codec' a b -> Maybe a
-decode b (d, _) = runDecoder d b
+decode :: L.ByteString -> Codec' d e -> Maybe d
+decode b (d, _) = fst <$> runDecoder d b
 
 -- * Encoders
 
@@ -77,5 +81,5 @@ instance Decidable Encoder where
   lose f = Encoder $ absurd . f
 
 -- | Run a codec's encoder.
-encode :: b -> Codec' a b -> B.Builder
+encode :: e -> Codec' d e -> B.Builder
 encode a (_, e) = runEncoder e a
