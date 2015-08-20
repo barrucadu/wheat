@@ -19,9 +19,13 @@ module Data.Wheat
     -- * Combinators
   , (<:>), (<<:>>)
   , (<:>>), (<<:>)
+  , (<++>)
+  , dispatch
+  , separate
   ) where
 
 import Data.Foldable
+import Data.Functor.Contravariant.Divisible
 import Data.Monoid
 import Data.Wheat.Types
 
@@ -129,3 +133,27 @@ c1 <:>> c2 = (snd <$> decoder, encoder) where
 (<<:>) :: Codec' d1 e -> Codec' d2 e -> Codec' d1 e
 c1 <<:> c2 = (fst <$> decoder, encoder) where
   (decoder, encoder) = c1 <:> c2
+
+-- | Combine two codecs into a codec for tuples of those types, where
+-- the encoded forms of each element are concatenated.
+(<++>) :: Codec' d1 e1 -> Codec' d2 e2 -> Codec' (d1, d2) (e1, e2)
+(<++>) = separate id id
+
+-- | Choose an encoder based on the actual value being encoded, with a
+-- decoder.
+--
+-- Be careful that this codec actually does express a reversible
+-- encoding when you have @d == e@!
+dispatch :: Decoder d -> (e -> B.Builder) -> Codec' d e
+dispatch decoder encoderf = (decoder, Encoder encoderf)
+
+-- | Apply a divide-and-conquer approach: given a function to split up
+-- the encoding into two smaller components, and a function to combine
+-- the smaller components after decoding, construct a codec for the
+-- more complex type.
+separate :: (e -> (e1, e2)) -> ((d1, d2) -> d) -> Codec' d1 e1 -> Codec' d2 e2 -> Codec' d e
+separate split merge (d1, e1) (d2, e2) = (decoder, divide split e1 e2) where
+  decoder = Decoder $ \b -> do
+    (x, b')  <- runDecoder d1 b
+    (y, b'') <- runDecoder d2 b'
+    Just (merge (x, y), b'')
