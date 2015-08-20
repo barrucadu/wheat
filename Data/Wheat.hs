@@ -27,6 +27,7 @@ module Data.Wheat
   , separate
   ) where
 
+import Control.Arrow
 import Data.Foldable
 import Data.Functor.Contravariant.Divisible
 import Data.Monoid
@@ -117,10 +118,16 @@ elementwise (decoder, encoder) = (Decoder $ decodes [], Encoder encodes) where
 -- | Encode an Int as ASCII digits.
 --
 -- Decoding will consume as many bytes from the start of the input as
--- represent ASCII digits, failing only if no bytes do.
+-- represent ASCII digits (with an optional single leading minus
+-- sign), failing only if no bytes do.
 asciiDigits :: Codec Int
 asciiDigits = (Decoder go, Encoder B.intDec) where
-  go bs =
+  go bs = case L.splitAt 1 bs of
+    (s, bs')
+      | s == L.pack [45] -> first negate <$> getNum bs'
+      | otherwise -> getNum bs
+
+  getNum bs =
     let (digits, rest) = L.span isAsciiDigit bs
      in if L.length digits == 0
         then Nothing
