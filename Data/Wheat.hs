@@ -9,6 +9,8 @@ module Data.Wheat
   , lazyByteString
   , constant
   , lazyConstant
+  , firstN
+  , lazyFirstN
 
   -- * Lists
   , elementwise
@@ -21,6 +23,7 @@ module Data.Wheat
   , (<:>>), (<<:>)
   , (<++>)
   , dispatch
+  , header
   , separate
   ) where
 
@@ -66,6 +69,34 @@ lazyConstant c = (Decoder check, Encoder . const $ B.lazyByteString c) where
      in if c == pref
         then Just (c, suff)
         else Nothing
+
+-- | Encode the first N bytes of a ByteString.
+--
+-- Decoding will fail if the actual ByteString is not at least as long
+-- as the given length.
+firstN :: Int -> Codec S.ByteString
+firstN len = (Decoder check, Encoder $ B.byteString . S.take len) where
+  check bs =
+    let (pref, suff) = L.splitAt len' bs
+    in if L.length pref == len'
+       then Just (L.toStrict pref, suff)
+       else Nothing
+
+  len' = fromIntegral len
+
+-- | Encode the first N bytes of a lazy ByteString.
+--
+-- Decoding will fail if the actual ByteString is not at least as long
+-- as the given length.
+lazyFirstN :: Int -> Codec L.ByteString
+lazyFirstN len = (Decoder check, Encoder $ B.lazyByteString . L.take len') where
+  check bs =
+    let (pref, suff) = L.splitAt len' bs
+    in if L.length pref == len'
+       then Just (pref, suff)
+       else Nothing
+
+  len' = fromIntegral len
 
 -- * Lists
 
@@ -146,6 +177,20 @@ c1 <<:> c2 = (fst <$> decoder, encoder) where
 -- encoding when you have @d == e@!
 dispatch :: Decoder d -> (e -> B.Builder) -> Codec' d e
 dispatch decoder encoderf = (decoder, Encoder encoderf)
+
+-- | Encode a value as a combination of header and encoded value. The
+-- codec used for encoding/decoding the value itself receives the
+-- (encoded/decoded) header as a parameter.
+header :: (e -> h) -> Codec h -> (h -> Codec' d e) -> Codec' d e
+header hf (hd, he) cf = (decoder, encoder) where
+  decoder = Decoder $ \b -> do
+    (h, b')  <- runDecoder hd b
+    (x, b'') <- runDecoder (decoderOf $ cf h) b'
+    Just (x, b'')
+
+  encoder = Encoder $ \e ->
+    let h = hf e
+     in runEncoder he h <> runEncoder (encoderOf $ cf h) e
 
 -- | Apply a divide-and-conquer approach: given a function to split up
 -- the encoding into two smaller components, and a function to combine
