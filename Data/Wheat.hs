@@ -27,6 +27,7 @@ module Data.Wheat
   , separate
   ) where
 
+import Control.Applicative
 import Control.Arrow
 import Data.Foldable
 import Data.Functor.Contravariant.Divisible
