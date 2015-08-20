@@ -18,6 +18,8 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Data.Wheat
+                     , Data.Wheat.Codecs
+                     , Data.Wheat.Combinators
                      , Data.Wheat.Types
   -- other-modules:       
   -- other-extensions:    
