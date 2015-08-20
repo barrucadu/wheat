@@ -17,7 +17,8 @@ extra-source-files:  README.markdown
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Data.Wheat.Types
+  exposed-modules:     Data.Wheat
+                     , Data.Wheat.Types
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >=4.8 && <4.9
