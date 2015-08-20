@@ -62,7 +62,9 @@ instance Monad Decoder where
     Just (a, b') -> runDecoder (f a) b'
     Nothing      -> Nothing
 
-instance MonadPlus Decoder
+instance MonadPlus Decoder where
+  mzero = empty
+  mplus = (<|>)
 
 -- | Run a codec's decoder.
 decode :: L.ByteString -> Codec' d e -> Maybe d
