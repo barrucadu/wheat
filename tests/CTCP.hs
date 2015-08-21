@@ -45,14 +45,13 @@ import Test.SmallCheck.Series.Instances ()
 import Test.Tasty
 import Test.Tasty.SmallCheck
 
+import Utils
+
 -- * Tests
 
 testCTCP :: TestTree
 testCTCP = testGroup "CTCP"
   [ testProperty "CTCP" $ \bs -> encDec ctcp bs == Just bs ]
-
-  where
-    encDec c a = decode (toLazyByteString $ encode a c) c
 
 -- * Implementation
 

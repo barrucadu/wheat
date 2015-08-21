@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
 
@@ -35,6 +36,8 @@ import Test.SmallCheck.Series.Instances ()
 import Test.Tasty
 import Test.Tasty.SmallCheck
 
+import Utils
+
 import qualified Data.ByteString as S
 
 -- * Tests
@@ -49,7 +52,6 @@ testBencode = testGroup "Bencoding"
   ]
 
   where
-    encDec c a = decode (toLazyByteString $ encode a c) c
     mangleDicts (BDict ds) = BDict $ sortBy (comparing fst) ds
     mangleDicts (BList vs) = BList $ map mangleDicts vs
     mangleDicts b = b
@@ -66,16 +68,11 @@ data BValue =
 instance Monad m => Serial m BValue
 
 bencode :: Codec BValue
-bencode = dispatch decoder encoder where
-  decoder = (BInt   <$> decoderOf bencodeInt)   <|>
-            (BBytes <$> decoderOf bencodeBytes) <|>
-            (BList  <$> decoderOf bencodeList)  <|>
-            (BDict  <$> decoderOf bencodeDict)
-
-  encoder (BInt   i) = encode i bencodeInt
-  encoder (BBytes b) = encode b bencodeBytes
-  encoder (BList  l) = encode l bencodeList
-  encoder (BDict  d) = encode d bencodeDict
+bencode =
+  (Wrap (Just . BInt)   (\case { BInt   i -> Just i; _ -> Nothing }) bencodeInt)   <||>
+  (Wrap (Just . BBytes) (\case { BBytes b -> Just b; _ -> Nothing }) bencodeBytes) <||>
+  (Wrap (Just . BList)  (\case { BList  l -> Just l; _ -> Nothing }) bencodeList)  <||>
+  (Wrap (Just . BDict)  (\case { BDict  d -> Just d; _ -> Nothing }) bencodeDict)
 
 bencodeInt :: Codec Int
 bencodeInt = constant "i" <:>> asciiDigits <<:> constant "e"
@@ -89,5 +86,5 @@ bencodeList = constant "l" <:>> elementwise bencode <<:> constant "e"
 
 bencodeDict :: Codec [(S.ByteString, BValue)]
 bencodeDict = constant "d" <:>> codec <<:> constant "e" where
-  codec = (decoder, contramap (sortBy $ comparing fst) encoder)
-  (decoder, encoder) = elementwise $ bencodeBytes <++> bencode
+  codec = Plain decoder $ contramap (sortBy $ comparing fst) encoder
+  (Plain decoder encoder) = elementwise $ bencodeBytes <++> bencode

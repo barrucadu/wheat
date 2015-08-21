@@ -28,9 +28,10 @@ it is unaffected by endianness, and there is exactly one legal
 encoding for a given data structure.
 
 ~~~~{.haskell}
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Data.Wheat.Bencode where
+module Bencode where
 
 import Control.Applicative
 import Data.ByteString
@@ -49,16 +50,11 @@ data BValue =
   deriving (Eq, Read, Show)
 
 bencode :: Codec BValue
-bencode = dispatch decoder encoder where
-  decoder = (BInt   <$> decoderOf bencodeInt)   <|>
-            (BBytes <$> decoderOf bencodeBytes) <|>
-            (BList  <$> decoderOf bencodeList)  <|>
-            (BDict  <$> decoderOf bencodeDict)
-
-  encoder (BInt   i) = encode i bencodeInt
-  encoder (BBytes b) = encode b bencodeBytes
-  encoder (BList  l) = encode l bencodeList
-  encoder (BDict  d) = encode d bencodeDict
+bencode =
+  (Wrap (Just . BInt)   (\case { BInt   i -> Just i; _ -> Nothing }) bencodeInt)   <||>
+  (Wrap (Just . BBytes) (\case { BBytes b -> Just b; _ -> Nothing }) bencodeBytes) <||>
+  (Wrap (Just . BList)  (\case { BList  l -> Just l; _ -> Nothing }) bencodeList)  <||>
+  (Wrap (Just . BDict)  (\case { BDict  d -> Just d; _ -> Nothing }) bencodeDict)
 
 bencodeInt :: Codec Int
 bencodeInt = constant "i" <:>> asciiDigits <<:> constant "e"
