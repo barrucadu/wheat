@@ -86,5 +86,5 @@ bencodeList = constant "l" <:>> elementwise bencode <<:> constant "e"
 
 bencodeDict :: Codec [(S.ByteString, BValue)]
 bencodeDict = constant "d" <:>> codec <<:> constant "e" where
-  codec = Plain decoder $ contramap (sortBy $ comparing fst) encoder
-  (Plain decoder encoder) = elementwise $ bencodeBytes <++> bencode
+  codec = Plain (decoderOf list) $ contramap (sortBy $ comparing fst) (encoderOf list)
+  list = elementwise $ bencodeBytes <++> bencode

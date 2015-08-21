@@ -34,7 +34,6 @@ encoding for a given data structure.
 module Bencode where
 
 import Control.Applicative
-import Data.ByteString
 import Data.Functor.Contravariant
 import Data.List
 import Data.Ord
@@ -68,8 +67,8 @@ bencodeList = constant "l" <:>> elementwise bencode <<:> constant "e"
 
 bencodeDict :: Codec [(S.ByteString, BValue)]
 bencodeDict = constant "d" <:>> codec <<:> constant "e" where
-  codec = (decoder, contramap (sortBy $ comparing fst) encoder)
-  (decoder, encoder) = elementwise $ bencodeBytes <++> bencode
+  codec = Plain (decoderOf list) $ contramap (sortBy $ comparing fst) (encoderOf list)
+  list = elementwise $ bencodeBytes <++> bencode
 ~~~~
 
 Contributing
