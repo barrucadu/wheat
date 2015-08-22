@@ -4,7 +4,9 @@ module Data.Wheat.Codecs where
 import Control.Applicative
 import Control.Arrow
 import Data.Foldable
+import Data.Maybe
 import Data.Monoid
+import Data.Wheat.Combinators
 import Data.Wheat.Types
 
 import qualified Data.ByteString.Builder as B
@@ -112,27 +114,6 @@ codewords cws = Plain decoder encoder where
   encwords = [(L.fromStrict c, L.fromStrict p) | (p, c) <- cws, not $ S.null c]
   decwords = [(L.fromStrict p, L.fromStrict c) | (p, c) <- cws, not $ S.null p]
 
--- * Lists
-
--- | Lift a codec over a type to over a list of that type.
---
--- Encoded elements are concatenated. Decoding never fails, as an
--- empty list is acceptable.
-elementwise :: Codec' d e -> Codec' [d] [e]
-elementwise c = Plain decoder encoder where
-  decoder = toDecoder $ go [] where
-    go ds b = case runDecoder (decoderOf c) b of
-      Just (d, b') -> go (d:ds) b'
-      Nothing -> Just (reverse ds, b)
-
-  encoder = toEncoder go where
-    go (e:es) = case runEncoder (encoderOf c) e of
-      Just b -> case go es of
-        Just b' -> Just $ b <> b'
-        Nothing -> Nothing
-      Nothing -> Nothing
-    go [] = Just mempty
-
 -- * Numbers
 
 -- | Encode an Int as ASCII digits.
@@ -158,3 +139,41 @@ asciiDigits = Plain decoder encoder where
     fromAsciiDigit w = fromIntegral w - 48
 
   encoder = toEncoder $ Just . B.intDec
+
+-- * Miscellaneous
+
+-- | Surround a codec with delimiters.
+--
+-- If an ending delimiter is provided, and multiple instances of the
+-- ending delimiter crop up in the actual ByteString when decoding,
+-- the wrapped codec will be tried for all possible endings until
+-- decoding succeeds. If decoding succeeds but does not consume all
+-- the bytes between the starting and ending tokens, the overall
+-- decoding will fail.
+delimited :: Maybe S.ByteString -> Maybe S.ByteString -> Codec' d e -> Codec' d e
+delimited pre post c = Plain decoder encoder where
+  decoder = toDecoder $ \b -> do
+    (_, b')   <- runDecoder (decoderOf $ constant pre') b
+    (d, b'')  <- runDecoder (toDecoder $ decoder' L.empty) b'
+    (_, b''') <- runDecoder (decoderOf $ constant post') b''
+    Just (d, b''')
+
+  decoder' prefix b =
+    let (string, rest) = toDelimiter b
+        string' = prefix <> string
+     in case runDecoder (decoderOf c) string' of
+          Just (d, b')
+            | L.null b' -> Just (d, rest)
+            | otherwise -> Nothing
+          Nothing -> decoder' string' rest
+
+  toDelimiter = go L.empty where
+    go str rest
+      | L.fromStrict post' `L.isPrefixOf` rest = (str, rest)
+      | L.null rest = (str, L.empty)
+      | otherwise = go (str <> L.take 1 rest) $ L.drop 1 rest
+
+  encoder = encoderOf $ constant pre' <:>> c <<:> constant post'
+
+  pre'  = fromMaybe S.empty pre
+  post' = fromMaybe S.empty post

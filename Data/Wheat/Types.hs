@@ -22,10 +22,8 @@ import Control.Monad.Trans.State
 import Data.Data
 import Data.Foldable
 import Data.Functor.Contravariant
-import Data.Functor.Contravariant.Divisible
 import Data.Monoid
 import Data.Traversable
-import Data.Void
 import GHC.Generics
 
 import qualified Data.ByteString.Builder as B
@@ -73,11 +71,11 @@ runDecoder :: GDecoder i a -> i -> Maybe (a, i)
 runDecoder = runStateT
 
 -- | Run a codec's decoder.
-decode :: L.ByteString -> Codec' d e -> Maybe d
+decode :: i -> GCodec i b d e -> Maybe d
 decode b c = fst <$> runDecoder (decoderOf c) b
 
 -- | Get the decoder of a codec.
-decoderOf :: Codec' d e -> Decoder d
+decoderOf :: GCodec i b d e -> GDecoder i d
 decoderOf (Plain decoder _) = decoder
 decoderOf (Wrap df _ c) = toDecoder $ \b -> case runDecoder (decoderOf c) b of
   Just (d, b') -> (\d' -> (d',b')) <$> df d
@@ -100,11 +98,11 @@ runEncoder :: GEncoder b a -> a -> Maybe b
 runEncoder e = getBoth . getOp e
 
 -- | Run a codec's encoder.
-encode :: e -> Codec' d e -> Maybe B.Builder
+encode :: e -> GCodec i b d e -> Maybe b
 encode a c = runEncoder (encoderOf c) a
 
 -- | Get the encoder of a codec.
-encoderOf :: Codec' d e -> Encoder e
+encoderOf :: GCodec i b d e -> GEncoder b e
 encoderOf (Plain _ encoder) = encoder
 encoderOf (Wrap _ ef c) = toEncoder $ ef >=> runEncoder (encoderOf c)
 
@@ -113,7 +111,7 @@ encoderOf (Wrap _ ef c) = toEncoder $ ef >=> runEncoder (encoderOf c)
 -- |The 'Both' Monoid is like 'Maybe', but requires both of its
 -- arguments to be 'Just' or the result will be 'Nothing'.
 newtype Both a = Both { getBoth :: Maybe a }
-  deriving (Eq, Ord, Read, Show, Data, Generic, Generic1, Functor, Applicative, Alternative, Monad, MonadPlus, Foldable, Traversable)
+  deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, Generic1, Functor, Applicative, Alternative, Monad, MonadPlus, Foldable, Traversable)
 
 instance Monoid a => Monoid (Both a) where
   mempty = Both $ Just mempty
