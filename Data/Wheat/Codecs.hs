@@ -3,6 +3,7 @@ module Data.Wheat.Codecs where
 
 import Control.Applicative
 import Control.Arrow
+import Control.Monad
 import Data.Foldable
 import Data.Maybe
 import Data.Monoid
@@ -153,9 +154,9 @@ asciiDigits = Plain decoder encoder where
 delimited :: Maybe S.ByteString -> Maybe S.ByteString -> Codec' d e -> Codec' d e
 delimited pre post c = Plain decoder encoder where
   decoder = do 
-    _ <- decoderOf $ constant pre'
+    void . decoderOf $ constant pre'
     d <- toDecoder $ decoder' L.empty
-    _ <- decoderOf $ constant post'
+    void . decoderOf $ constant post'
     return d
 
   decoder' prefix b =

@@ -67,20 +67,15 @@ elementwise c = Plain decoder encoder where
       Just (d, b') -> go (d:ds) b'
       Nothing -> Just (reverse ds, b)
 
-  encoder = toEncoder (getBoth . go) where
-    go (e:es) = Both (runEncoder (encoderOf c) e) <> go es
-    go [] = mempty
+  encoder = toEncoder go where
+    go = getBoth . foldr ((<>) . Both . runEncoder (encoderOf c)) mempty
 
 -- | Encode a value as a combination of header and encoded value. The
 -- codec used for encoding/decoding the value itself receives the
 -- (encoded/decoded) header as a parameter.
 header :: Monoid b => (e -> h) -> GCodec i b h h -> (h -> GCodec i b d e) -> GCodec i b d e
 header hf hc cf = Plain decoder encoder where
-  decoder = do
-    h <- decoderOf hc
-    x <- decoderOf $ cf h
-    return x
-
+  decoder = decoderOf hc >>= decoderOf . cf
   encoder = toEncoder $ \e ->
     let h = hf e
      in runEncoder (encoderOf hc) h <> runEncoder (encoderOf $ cf h) e
