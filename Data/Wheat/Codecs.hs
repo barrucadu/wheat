@@ -152,11 +152,11 @@ asciiDigits = Plain decoder encoder where
 -- decoding will fail.
 delimited :: Maybe S.ByteString -> Maybe S.ByteString -> Codec' d e -> Codec' d e
 delimited pre post c = Plain decoder encoder where
-  decoder = toDecoder $ \b -> do
-    (_, b')   <- runDecoder (decoderOf $ constant pre') b
-    (d, b'')  <- runDecoder (toDecoder $ decoder' L.empty) b'
-    (_, b''') <- runDecoder (decoderOf $ constant post') b''
-    Just (d, b''')
+  decoder = do 
+    _ <- decoderOf $ constant pre'
+    d <- toDecoder $ decoder' L.empty
+    _ <- decoderOf $ constant post'
+    return d
 
   decoder' prefix b =
     let (string, rest) = toDelimiter b

@@ -24,10 +24,10 @@ this <||> other = Plain (toDecoder decodes) (toEncoder encodes) where
 -- from the first codec is used as input to the second.
 (<:>) :: Monoid b => GCodec i b d1 e -> GCodec i b d2 e -> GCodec i b (d1, d2) e
 c1 <:> c2 = Plain decoder (encoderOf c1 <> encoderOf c2) where
-  decoder = toDecoder $ \b -> do
-    (x, b')  <- runDecoder (decoderOf c1) b
-    (y, b'') <- runDecoder (decoderOf c2) b'
-    Just ((x, y), b'')
+  decoder = do
+    x <- decoderOf c1
+    y <- decoderOf c2
+    return (x, y)
 
 -- | Sequential composition of codecs, combining the results of
 -- decoding monoidally.
@@ -76,10 +76,10 @@ elementwise c = Plain decoder encoder where
 -- (encoded/decoded) header as a parameter.
 header :: Monoid b => (e -> h) -> GCodec i b h h -> (h -> GCodec i b d e) -> GCodec i b d e
 header hf hc cf = Plain decoder encoder where
-  decoder = toDecoder $ \b -> do
-    (h, b')  <- runDecoder (decoderOf hc) b
-    (x, b'') <- runDecoder (decoderOf $ cf h) b'
-    Just (x, b'')
+  decoder = do
+    h <- decoderOf hc
+    x <- decoderOf $ cf h
+    return x
 
   encoder = toEncoder $ \e ->
     let h = hf e
@@ -91,9 +91,9 @@ header hf hc cf = Plain decoder encoder where
 -- more complex type.
 separate :: Monoid b => (e -> (e1, e2)) -> ((d1, d2) -> d) -> GCodec i b d1 e1 -> GCodec i b d2 e2 -> GCodec i b d e
 separate split merge c1 c2 = Plain decoder encoder where
-  decoder = toDecoder $ \b -> do
-    (x, b')  <- runDecoder (decoderOf c1) b
-    (y, b'') <- runDecoder (decoderOf c2) b'
-    Just (merge (x, y), b'')
+  decoder = do
+    x <- decoderOf c1
+    y <- decoderOf c2
+    return $ merge (x, y)
 
   encoder = divide split (encoderOf c1) (encoderOf c2)
