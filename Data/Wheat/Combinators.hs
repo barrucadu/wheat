@@ -76,9 +76,9 @@ elementwise c = Plain decoder encoder where
 header :: Monoid b => (e -> h) -> GCodec i b h h -> (h -> GCodec i b d e) -> GCodec i b d e
 header hf hc cf = Plain decoder encoder where
   decoder = decoderOf hc >>= decoderOf . cf
-  encoder = toEncoder $ \e ->
+  encoder = toEncoder $ \e -> getBoth $
     let h = hf e
-     in runEncoder (encoderOf hc) h <> runEncoder (encoderOf $ cf h) e
+     in Both (runEncoder (encoderOf hc) h) <> Both (runEncoder (encoderOf $ cf h) e)
 
 -- | Apply a divide-and-conquer approach: given a function to split up
 -- the encoding into two smaller components, and a function to combine
