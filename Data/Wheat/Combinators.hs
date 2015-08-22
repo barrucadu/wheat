@@ -14,8 +14,8 @@ import Data.Wheat.Types
 -- right one will be tried.
 (<||>) :: GCodec i b d e -> GCodec i b d e -> GCodec i b d e
 this <||> other = Plain (toDecoder decodes) (toEncoder encodes) where
-  decodes b = runDecoder (decoderOf other) b <|> runDecoder (decoderOf this) b
-  encodes e = runEncoder (encoderOf other) e <|> runEncoder (encoderOf this) e
+  decodes b = runDecoder (decoderOf this) b <|> runDecoder (decoderOf other) b
+  encodes e = runEncoder (encoderOf this) e <|> runEncoder (encoderOf other) e
 
 -- | Sequential composition of codecs.
 --
