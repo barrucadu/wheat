@@ -18,13 +18,13 @@ import qualified Data.ByteString.Lazy as L
 
 -- | Encode a ByteString (the identity codec)
 byteString :: Codec S.ByteString
-byteString = Plain decoder encoder where
+byteString = Codec decoder encoder where
   decoder = toDecoder $ \b -> Just (L.toStrict b, L.empty)
   encoder = toEncoder $ Just . B.byteString
 
 -- | Encode a lazy ByteString (the identity codec)
 lazyByteString :: Codec L.ByteString
-lazyByteString = Plain decoder encoder where
+lazyByteString = Codec decoder encoder where
   decoder = toDecoder $ \b -> Just (b, L.empty)
   encoder = toEncoder $ Just . B.lazyByteString
 
@@ -33,7 +33,7 @@ lazyByteString = Plain decoder encoder where
 -- Decoding will fail if the supplied ByteString is not a prefix of
 -- the actual one. Encoding will ignore its argument.
 constant :: S.ByteString -> Codec' S.ByteString e
-constant c = Plain decoder encoder where
+constant c = Codec decoder encoder where
   decoder = toDecoder $ \bs ->
     let (pref, suff) = L.splitAt (fromIntegral $ S.length c) bs
      in if L.fromStrict c == pref
@@ -47,7 +47,7 @@ constant c = Plain decoder encoder where
 -- Decoding will fail if the actual ByteString differs from the
 -- supplied one. Encoding will ignore its argument.
 lazyConstant :: L.ByteString -> Codec' L.ByteString e
-lazyConstant c = Plain decoder encoder where
+lazyConstant c = Codec decoder encoder where
   decoder = toDecoder $ \bs ->
     let (pref, suff) = L.splitAt (L.length c) bs
      in if c == pref
@@ -61,7 +61,7 @@ lazyConstant c = Plain decoder encoder where
 -- Decoding will fail if the actual ByteString is not at least as long
 -- as the given length.
 firstN :: Int -> Codec S.ByteString
-firstN len = Plain decoder encoder where
+firstN len = Codec decoder encoder where
   decoder = toDecoder $ \bs ->
     let (pref, suff) = L.splitAt len' bs
     in if L.length pref == len'
@@ -77,7 +77,7 @@ firstN len = Plain decoder encoder where
 -- Decoding will fail if the actual ByteString is not at least as long
 -- as the given length.
 lazyFirstN :: Int -> Codec L.ByteString
-lazyFirstN len = Plain decoder encoder where
+lazyFirstN len = Codec decoder encoder where
   decoder = toDecoder $ \bs ->
     let (pref, suff) = L.splitAt len' bs
     in if L.length pref == len'
@@ -93,7 +93,7 @@ lazyFirstN len = Plain decoder encoder where
 -- and decoding attempt to match codewords in order, allowing for
 -- non-prefix-free codes.
 codewords :: [(S.ByteString, S.ByteString)] -> Codec S.ByteString
-codewords cws = Plain decoder encoder where
+codewords cws = Codec decoder encoder where
   decoder = toDecoder $ wrap . code decwords
   encoder = toEncoder $ Just . code encwords . L.fromStrict
 
@@ -123,7 +123,7 @@ codewords cws = Plain decoder encoder where
 -- represent ASCII digits (with an optional single leading minus
 -- sign), failing only if no bytes do.
 asciiDigits :: Codec Int
-asciiDigits = Plain decoder encoder where
+asciiDigits = Codec decoder encoder where
   decoder = toDecoder go where
     go bs = case L.splitAt 1 bs of
       (s, bs')
@@ -152,7 +152,7 @@ asciiDigits = Plain decoder encoder where
 -- the bytes between the starting and ending tokens, the overall
 -- decoding will fail.
 delimited :: Maybe S.ByteString -> Maybe S.ByteString -> Codec' d e -> Codec' d e
-delimited pre post c = Plain decoder encoder where
+delimited pre post c = Codec decoder encoder where
   decoder = do 
     void . decoderOf $ constant pre'
     d <- toDecoder $ decoder' L.empty

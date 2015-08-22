@@ -69,10 +69,10 @@ instance Monad m => Serial m BValue
 
 bencode :: Codec BValue
 bencode =
-  (Wrap (Just . BInt)   (\case { BInt   i -> Just i; _ -> Nothing }) bencodeInt)   <||>
-  (Wrap (Just . BBytes) (\case { BBytes b -> Just b; _ -> Nothing }) bencodeBytes) <||>
-  (Wrap (Just . BList)  (\case { BList  l -> Just l; _ -> Nothing }) bencodeList)  <||>
-  (Wrap (Just . BDict)  (\case { BDict  d -> Just d; _ -> Nothing }) bencodeDict)
+  (wrap (Just . BInt)   (\case { BInt   i -> Just i; _ -> Nothing }) bencodeInt)   <||>
+  (wrap (Just . BBytes) (\case { BBytes b -> Just b; _ -> Nothing }) bencodeBytes) <||>
+  (wrap (Just . BList)  (\case { BList  l -> Just l; _ -> Nothing }) bencodeList)  <||>
+  (wrap (Just . BDict)  (\case { BDict  d -> Just d; _ -> Nothing }) bencodeDict)
 
 bencodeInt :: Codec Int
 bencodeInt = constant "i" <:>> asciiDigits <<:> constant "e"
@@ -86,5 +86,5 @@ bencodeList = constant "l" <:>> elementwise bencode <<:> constant "e"
 
 bencodeDict :: Codec [(S.ByteString, BValue)]
 bencodeDict = constant "d" <:>> codec <<:> constant "e" where
-  codec = Plain (decoderOf list) $ contramap (sortBy $ comparing fst) (encoderOf list)
+  codec = Codec (decoderOf list) $ contramap (sortBy $ comparing fst) (encoderOf list)
   list = elementwise $ bencodeBytes <++> bencode

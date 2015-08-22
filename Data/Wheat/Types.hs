@@ -1,7 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable         #-}
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE DeriveTraversable          #-}
-{-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- | Wheat is based around bidirectional codecs, although they are not
@@ -38,21 +37,8 @@ type Codec a = Codec' a a
 
 -- | A more general codec where we are covariant in the type we encode
 -- but contravariant in the type we decode.
---
--- There are two constructors,
---
--- - @Plain@: The simplest type of codec is just a pair of a 'Decoder'
---   and 'Encoder'.
---
--- - @Wrap@: Sometimes it's useful to operate in terms of one type,
---   but do transformation to another under the hood (see the
---   bencoding example in the README), as this means we can have a
---   collection of codecs which are conceptually the same type, but
---   have very different implementations.
-type Codec' d e = GCodec L.ByteString B.Builder d e
-data GCodec i b d e where
-  Plain :: GDecoder i d -> GEncoder b e -> GCodec i b d e
-  Wrap  :: (d' -> Maybe d) -> (e -> Maybe e') -> GCodec i b d' e' -> GCodec i b d e
+type Codec'     d e = GCodec L.ByteString B.Builder d e
+data GCodec i b d e = Codec { decoderOf :: GDecoder i d, encoderOf :: GEncoder b e }
 
 -- * Decoders
 
@@ -74,13 +60,6 @@ runDecoder = runStateT
 decode :: GCodec i b d e -> i -> Maybe d
 decode c = fmap fst . runDecoder (decoderOf c)
 
--- | Get the decoder of a codec.
-decoderOf :: GCodec i b d e -> GDecoder i d
-decoderOf (Plain decoder _) = decoder
-decoderOf (Wrap df _ c) = toDecoder $ \b -> case runDecoder (decoderOf c) b of
-  Just (d, b') -> (\d' -> (d',b')) <$> df d
-  Nothing -> Nothing
-
 -- * Encoders
 
 -- | An encoder is a function which, given some input value, will
@@ -100,11 +79,6 @@ runEncoder e = getBoth . getOp e
 -- | Run a codec's encoder.
 encode :: GCodec i b d e -> e -> Maybe b
 encode c = runEncoder $ encoderOf c
-
--- | Get the encoder of a codec.
-encoderOf :: GCodec i b d e -> GEncoder b e
-encoderOf (Plain _ encoder) = encoder
-encoderOf (Wrap _ ef c) = toEncoder $ ef >=> runEncoder (encoderOf c)
 
 -- * 'Both' Monoid
 
