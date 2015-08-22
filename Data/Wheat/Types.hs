@@ -46,15 +46,15 @@ data GCodec i b d e = Codec { decoderOf :: GDecoder i d, encoderOf :: GEncoder b
 -- attempt to decode it according to the construction of the decoder
 -- and return any remaining input.
 type Decoder    a = GDecoder L.ByteString a
-type GDecoder i a = StateT i Maybe a
+type GDecoder i a = StateT i Both a
 
 -- | Construct a decoder.
 toDecoder :: (i -> Maybe (a, i)) -> GDecoder i a
-toDecoder = StateT
+toDecoder f = StateT $ Both . f
 
 -- | Run a decoder.
 runDecoder :: GDecoder i a -> i -> Maybe (a, i)
-runDecoder = runStateT
+runDecoder d = getBoth . runStateT d
 
 -- | Run a codec's decoder.
 decode :: GCodec i b d e -> i -> Maybe d
