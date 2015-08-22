@@ -67,13 +67,9 @@ elementwise c = Plain decoder encoder where
       Just (d, b') -> go (d:ds) b'
       Nothing -> Just (reverse ds, b)
 
-  encoder = toEncoder go where
-    go (e:es) = case runEncoder (encoderOf c) e of
-      Just b -> case go es of
-        Just b' -> Just $ b <> b'
-        Nothing -> Nothing
-      Nothing -> Nothing
-    go [] = Just mempty
+  encoder = toEncoder (getBoth . go) where
+    go (e:es) = Both (runEncoder (encoderOf c) e) <> go es
+    go [] = mempty
 
 -- | Encode a value as a combination of header and encoded value. The
 -- codec used for encoding/decoding the value itself receives the
