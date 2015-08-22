@@ -71,8 +71,8 @@ runDecoder :: GDecoder i a -> i -> Maybe (a, i)
 runDecoder = runStateT
 
 -- | Run a codec's decoder.
-decode :: i -> GCodec i b d e -> Maybe d
-decode b c = fst <$> runDecoder (decoderOf c) b
+decode :: GCodec i b d e -> i -> Maybe d
+decode c = fmap fst . runDecoder (decoderOf c)
 
 -- | Get the decoder of a codec.
 decoderOf :: GCodec i b d e -> GDecoder i d
@@ -98,8 +98,8 @@ runEncoder :: GEncoder b a -> a -> Maybe b
 runEncoder e = getBoth . getOp e
 
 -- | Run a codec's encoder.
-encode :: e -> GCodec i b d e -> Maybe b
-encode a c = runEncoder (encoderOf c) a
+encode :: GCodec i b d e -> e -> Maybe b
+encode c = runEncoder $ encoderOf c
 
 -- | Get the encoder of a codec.
 encoderOf :: GCodec i b d e -> GEncoder b e
