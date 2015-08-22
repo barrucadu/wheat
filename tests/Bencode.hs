@@ -29,6 +29,7 @@ import Data.ByteString.Builder
 import Data.Functor.Contravariant
 import Data.List
 import Data.Ord
+import Data.Profunctor
 import Data.Wheat
 import GHC.Generics
 import Test.SmallCheck.Series
@@ -86,5 +87,5 @@ bencodeList = constant "l" <:>> elementwise bencode <<:> constant "e"
 
 bencodeDict :: Codec [(S.ByteString, BValue)]
 bencodeDict = constant "d" <:>> codec <<:> constant "e" where
-  codec = Codec (decoderOf list) $ contramap (sortBy $ comparing fst) (encoderOf list)
-  list = elementwise $ bencodeBytes <++> bencode
+  codec = lmap (sortBy $ comparing fst) list
+  list  = elementwise $ bencodeBytes <++> bencode

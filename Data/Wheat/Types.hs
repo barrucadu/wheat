@@ -22,6 +22,7 @@ import Data.Data
 import Data.Foldable
 import Data.Functor.Contravariant
 import Data.Monoid
+import Data.Profunctor
 import Data.Traversable
 import GHC.Generics
 
@@ -39,6 +40,10 @@ type Codec a = Codec' a a
 -- but contravariant in the type we decode.
 type Codec'     e d = GCodec L.ByteString B.Builder e d
 data GCodec i b e d = Codec { encoderOf :: GEncoder b e, decoderOf :: GDecoder i d }
+
+instance Profunctor (GCodec i b) where
+  lmap f c = c { encoderOf = f >$< encoderOf c }
+  rmap f c = c { decoderOf = f <$> decoderOf c }
 
 -- * Decoders
 

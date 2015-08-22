@@ -26,6 +26,7 @@ library
   build-depends:       base >=4.7 && <4.9
                      , bytestring
                      , contravariant
+                     , profunctors
                      , transformers
                      , void
   -- hs-source-dirs:      
@@ -39,6 +40,7 @@ test-suite wheat-test
   build-depends:       base, wheat
                      , bytestring
                      , contravariant
+                     , profunctors
                      , smallcheck
                      , smallcheck-series
                      , tasty
