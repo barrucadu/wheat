@@ -18,7 +18,7 @@ import qualified Data.ByteString.Lazy as L
 -- | Prioritised choice between codecs. If the left one fails the
 -- right one will be tried.
 (<||>) :: Codec' d e -> Codec' d e -> Codec' d e
-this <||> other = Plain (Decoder decodes) (Encoder encodes) where
+this <||> other = Plain (toDecoder decodes) (toEncoder encodes) where
   decodes b = runDecoder (decoderOf other) b <|> runDecoder (decoderOf this) b
   encodes e = runEncoder (encoderOf other) e <|> runEncoder (encoderOf this) e
 
@@ -29,7 +29,7 @@ this <||> other = Plain (Decoder decodes) (Encoder encodes) where
 -- from the first codec is used as input to the second.
 (<:>) :: Codec' d1 e -> Codec' d2 e -> Codec' (d1, d2) e
 c1 <:> c2 = Plain decoder (encoderOf c1 <> encoderOf c2) where
-  decoder = Decoder $ \b -> do
+  decoder = toDecoder $ \b -> do
     (x, b')  <- runDecoder (decoderOf c1) b
     (y, b'') <- runDecoder (decoderOf c2) b'
     Just ((x, y), b'')
@@ -71,9 +71,9 @@ c1 <<:> c2 = Plain (fst <$> decoderOf cx) (encoderOf cx) where
 -- decoding will fail.
 delimited :: Maybe S.ByteString -> Maybe S.ByteString -> Codec' d e -> Codec' d e
 delimited pre post c = Plain decoder encoder where
-  decoder = Decoder $ \b -> do
+  decoder = toDecoder $ \b -> do
     (_, b')   <- runDecoder (decoderOf $ constant pre') b
-    (d, b'')  <- runDecoder (Decoder $ decoder' L.empty) b'
+    (d, b'')  <- runDecoder (toDecoder $ decoder' L.empty) b'
     (_, b''') <- runDecoder (decoderOf $ constant post') b''
     Just (d, b''')
 
@@ -102,12 +102,12 @@ delimited pre post c = Plain decoder encoder where
 -- (encoded/decoded) header as a parameter.
 header :: (e -> h) -> Codec h -> (h -> Codec' d e) -> Codec' d e
 header hf hc cf = Plain decoder encoder where
-  decoder = Decoder $ \b -> do
+  decoder = toDecoder $ \b -> do
     (h, b')  <- runDecoder (decoderOf hc) b
     (x, b'') <- runDecoder (decoderOf $ cf h) b'
     Just (x, b'')
 
-  encoder = Encoder $ \e ->
+  encoder = toEncoder $ \e ->
     let h = hf e
      in runEncoder (encoderOf hc) h <> runEncoder (encoderOf $ cf h) e
 
@@ -117,7 +117,7 @@ header hf hc cf = Plain decoder encoder where
 -- more complex type.
 separate :: (e -> (e1, e2)) -> ((d1, d2) -> d) -> Codec' d1 e1 -> Codec' d2 e2 -> Codec' d e
 separate split merge c1 c2 = Plain decoder encoder where
-  decoder = Decoder $ \b -> do
+  decoder = toDecoder $ \b -> do
     (x, b')  <- runDecoder (decoderOf c1) b
     (y, b'') <- runDecoder (decoderOf c2) b'
     Just (merge (x, y), b'')

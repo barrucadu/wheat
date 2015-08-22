@@ -16,14 +16,14 @@ import qualified Data.ByteString.Lazy as L
 -- | Encode a ByteString (the identity codec)
 byteString :: Codec S.ByteString
 byteString = Plain decoder encoder where
-  decoder = Decoder $ \b -> Just (L.toStrict b, L.empty)
-  encoder = Encoder $ Just . B.byteString
+  decoder = toDecoder $ \b -> Just (L.toStrict b, L.empty)
+  encoder = toEncoder $ Just . B.byteString
 
 -- | Encode a lazy ByteString (the identity codec)
 lazyByteString :: Codec L.ByteString
 lazyByteString = Plain decoder encoder where
-  decoder = Decoder $ \b -> Just (b, L.empty)
-  encoder = Encoder $ Just . B.lazyByteString
+  decoder = toDecoder $ \b -> Just (b, L.empty)
+  encoder = toEncoder $ Just . B.lazyByteString
 
 -- | Encode a constant ByteString.
 --
@@ -31,13 +31,13 @@ lazyByteString = Plain decoder encoder where
 -- the actual one. Encoding will ignore its argument.
 constant :: S.ByteString -> Codec' S.ByteString e
 constant c = Plain decoder encoder where
-  decoder = Decoder $ \bs ->
+  decoder = toDecoder $ \bs ->
     let (pref, suff) = L.splitAt (fromIntegral $ S.length c) bs
      in if L.fromStrict c == pref
         then Just (c, suff)
         else Nothing
 
-  encoder = Encoder . const . Just $ B.byteString c
+  encoder = toEncoder . const . Just $ B.byteString c
 
 -- | Encode a constant lazy ByteString.
 --
@@ -45,13 +45,13 @@ constant c = Plain decoder encoder where
 -- supplied one. Encoding will ignore its argument.
 lazyConstant :: L.ByteString -> Codec' L.ByteString e
 lazyConstant c = Plain decoder encoder where
-  decoder = Decoder $ \bs ->
+  decoder = toDecoder $ \bs ->
     let (pref, suff) = L.splitAt (L.length c) bs
      in if c == pref
         then Just (c, suff)
         else Nothing
 
-  encoder = Encoder . const . Just $ B.lazyByteString c
+  encoder = toEncoder . const . Just $ B.lazyByteString c
 
 -- | Encode the first N bytes of a ByteString.
 --
@@ -59,13 +59,13 @@ lazyConstant c = Plain decoder encoder where
 -- as the given length.
 firstN :: Int -> Codec S.ByteString
 firstN len = Plain decoder encoder where
-  decoder = Decoder $ \bs ->
+  decoder = toDecoder $ \bs ->
     let (pref, suff) = L.splitAt len' bs
     in if L.length pref == len'
        then Just (L.toStrict pref, suff)
        else Nothing
 
-  encoder = Encoder $ Just . B.byteString . S.take len
+  encoder = toEncoder $ Just . B.byteString . S.take len
 
   len' = fromIntegral len
 
@@ -75,13 +75,13 @@ firstN len = Plain decoder encoder where
 -- as the given length.
 lazyFirstN :: Int -> Codec L.ByteString
 lazyFirstN len = Plain decoder encoder where
-  decoder = Decoder $ \bs ->
+  decoder = toDecoder $ \bs ->
     let (pref, suff) = L.splitAt len' bs
     in if L.length pref == len'
        then Just (pref, suff)
        else Nothing
 
-  encoder = Encoder $ Just . B.lazyByteString . L.take len'
+  encoder = toEncoder $ Just . B.lazyByteString . L.take len'
 
   len' = fromIntegral len
 
@@ -91,8 +91,8 @@ lazyFirstN len = Plain decoder encoder where
 -- non-prefix-free codes.
 codewords :: [(S.ByteString, S.ByteString)] -> Codec S.ByteString
 codewords cws = Plain decoder encoder where
-  decoder = Decoder $ wrap . code decwords
-  encoder = Encoder $ Just . code encwords . L.fromStrict
+  decoder = toDecoder $ wrap . code decwords
+  encoder = toEncoder $ Just . code encwords . L.fromStrict
 
   wrap bldr = Just (L.toStrict $ B.toLazyByteString bldr, L.empty)
 
@@ -120,12 +120,12 @@ codewords cws = Plain decoder encoder where
 -- empty list is acceptable.
 elementwise :: Codec' d e -> Codec' [d] [e]
 elementwise c = Plain decoder encoder where
-  decoder = Decoder $ go [] where
+  decoder = toDecoder $ go [] where
     go ds b = case runDecoder (decoderOf c) b of
       Just (d, b') -> go (d:ds) b'
       Nothing -> Just (reverse ds, b)
 
-  encoder = Encoder go where
+  encoder = toEncoder go where
     go (e:es) = case runEncoder (encoderOf c) e of
       Just b -> case go es of
         Just b' -> Just $ b <> b'
@@ -142,7 +142,7 @@ elementwise c = Plain decoder encoder where
 -- sign), failing only if no bytes do.
 asciiDigits :: Codec Int
 asciiDigits = Plain decoder encoder where
-  decoder = Decoder go where
+  decoder = toDecoder go where
     go bs = case L.splitAt 1 bs of
       (s, bs')
         | s == L.pack [45] -> first negate <$> getNum bs'
@@ -157,4 +157,4 @@ asciiDigits = Plain decoder encoder where
     isAsciiDigit   w = w >= 48 && w <= 57
     fromAsciiDigit w = fromIntegral w - 48
 
-  encoder = Encoder $ Just . B.intDec
+  encoder = toEncoder $ Just . B.intDec

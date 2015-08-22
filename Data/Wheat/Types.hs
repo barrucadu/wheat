@@ -1,4 +1,8 @@
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE DeriveDataTypeable         #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE DeriveTraversable          #-}
+{-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- | Wheat is based around bidirectional codecs, although they are not
 -- constrained to deocde to the same type they decode (see
@@ -13,13 +17,16 @@
 module Data.Wheat.Types where
 
 import Control.Applicative
-import Control.Arrow
 import Control.Monad
+import Control.Monad.Trans.State
+import Data.Data
+import Data.Foldable
 import Data.Functor.Contravariant
 import Data.Functor.Contravariant.Divisible
-import Data.Maybe
 import Data.Monoid
+import Data.Traversable
 import Data.Void
+import GHC.Generics
 
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Lazy as L
@@ -44,42 +51,26 @@ type Codec a = Codec' a a
 --   bencoding example in the README), as this means we can have a
 --   collection of codecs which are conceptually the same type, but
 --   have very different implementations.
-data Codec' d e where
-  Plain :: Decoder d -> Encoder e -> Codec' d e
-  Wrap  :: (d' -> Maybe d) -> (e -> Maybe e') -> Codec' d' e' -> Codec' d e
+type Codec' d e = GCodec L.ByteString B.Builder d e
+data GCodec i b d e where
+  Plain :: GDecoder i d -> GEncoder b e -> GCodec i b d e
+  Wrap  :: (d' -> Maybe d) -> (e -> Maybe e') -> GCodec i b d' e' -> GCodec i b d e
 
 -- * Decoders
 
 -- | A decoder is a function which, given some input bytestring, will
 -- attempt to decode it according to the construction of the decoder
 -- and return any remaining input.
-newtype Decoder a = Decoder { runDecoder :: L.ByteString -> Maybe (a, L.ByteString) }
+type Decoder    a = GDecoder L.ByteString a
+type GDecoder i a = StateT i Maybe a
 
-instance Functor Decoder where
-  fmap f d = Decoder $ \b -> first f <$> runDecoder d b
+-- | Construct a decoder.
+toDecoder :: (i -> Maybe (a, i)) -> GDecoder i a
+toDecoder = StateT
 
-instance Applicative Decoder where
-  pure a = Decoder . const $ Just (a, L.empty)
-
-  df <*> da = Decoder $ \b -> case runDecoder df b of
-    Just (f, b') -> first f <$> runDecoder da b'
-    Nothing -> Nothing
-
-instance Alternative Decoder where
-  empty = Decoder $ const Nothing
-
-  da <|> db = Decoder $ \b -> fromMaybe (runDecoder db b) (Just <$> runDecoder da b)
-
-instance Monad Decoder where
-  return = pure
-
-  d >>= f = Decoder $ \b -> case runDecoder d b of
-    Just (a, b') -> runDecoder (f a) b'
-    Nothing      -> Nothing
-
-instance MonadPlus Decoder where
-  mzero = empty
-  mplus = (<|>)
+-- | Run a decoder.
+runDecoder :: GDecoder i a -> i -> Maybe (a, i)
+runDecoder = runStateT
 
 -- | Run a codec's decoder.
 decode :: L.ByteString -> Codec' d e -> Maybe d
@@ -88,7 +79,7 @@ decode b c = fst <$> runDecoder (decoderOf c) b
 -- | Get the decoder of a codec.
 decoderOf :: Codec' d e -> Decoder d
 decoderOf (Plain decoder _) = decoder
-decoderOf (Wrap df _ c) = Decoder $ \b -> case runDecoder (decoderOf c) b of
+decoderOf (Wrap df _ c) = toDecoder $ \b -> case runDecoder (decoderOf c) b of
   Just (d, b') -> (\d' -> (d',b')) <$> df d
   Nothing -> Nothing
 
@@ -97,28 +88,16 @@ decoderOf (Wrap df _ c) = Decoder $ \b -> case runDecoder (decoderOf c) b of
 -- | An encoder is a function which, given some input value, will
 -- attempt to encode it according to the construction of the encoder,
 -- producing a ByteString builder.
-newtype Encoder a = Encoder { runEncoder :: a -> Maybe B.Builder }
+type Encoder    a = GEncoder B.Builder a
+type GEncoder b a = Op (Both b) a
 
-instance Contravariant Encoder where
-  contramap f e = Encoder $ runEncoder e . f
+-- | Construct an encoder.
+toEncoder :: (a -> Maybe b) -> GEncoder b a
+toEncoder f = Op $ Both . f
 
-instance Divisible Encoder where
-  divide split fb fc = Encoder $ \a ->
-    let (b, c) = split a
-     in case (runEncoder fb b, runEncoder fc c) of
-          (Just b1, Just b2) -> Just $ b1 <> b2
-          _ -> Nothing
-
-  conquer = Encoder . const $ Just mempty
-
-instance Decidable Encoder where
-  choose f fb fc = Encoder $ either (runEncoder fb) (runEncoder fc) . f
-
-  lose f = Encoder $ absurd . f
-
-instance Monoid (Encoder a) where
-  mempty  = conquer
-  mappend = divide $ \a -> (a, a)
+-- | Run a decoder.
+runEncoder :: GEncoder b a -> a -> Maybe b
+runEncoder e = getBoth . getOp e
 
 -- | Run a codec's encoder.
 encode :: e -> Codec' d e -> Maybe B.Builder
@@ -127,4 +106,16 @@ encode a c = runEncoder (encoderOf c) a
 -- | Get the encoder of a codec.
 encoderOf :: Codec' d e -> Encoder e
 encoderOf (Plain _ encoder) = encoder
-encoderOf (Wrap _ ef c) = Encoder $ ef >=> runEncoder (encoderOf c)
+encoderOf (Wrap _ ef c) = toEncoder $ ef >=> runEncoder (encoderOf c)
+
+-- * 'Both' Monoid
+
+-- |The 'Both' Monoid is like 'Maybe', but requires both of its
+-- arguments to be 'Just' or the result will be 'Nothing'.
+newtype Both a = Both { getBoth :: Maybe a }
+  deriving (Eq, Ord, Read, Show, Data, Generic, Generic1, Functor, Applicative, Alternative, Monad, MonadPlus, Foldable, Traversable)
+
+instance Monoid a => Monoid (Both a) where
+  mempty = Both $ Just mempty
+  mappend (Both (Just x)) (Both (Just y)) = Both . Just $ x <> y
+  mappend _ _ = Both Nothing
