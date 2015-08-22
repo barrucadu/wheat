@@ -12,8 +12,8 @@ import Data.Wheat.Types
 
 -- | Prioritised choice between codecs. If the left one fails the
 -- right one will be tried.
-(<||>) :: GCodec i b d e -> GCodec i b d e -> GCodec i b d e
-this <||> other = Codec (toDecoder decodes) (toEncoder encodes) where
+(<||>) :: GCodec i b e d -> GCodec i b e d -> GCodec i b e d
+this <||> other = Codec (toEncoder encodes) (toDecoder decodes) where
   decodes b = runDecoder (decoderOf this) b <|> runDecoder (decoderOf other) b
   encodes e = runEncoder (encoderOf this) e <|> runEncoder (encoderOf other) e
 
@@ -22,8 +22,8 @@ this <||> other = Codec (toDecoder decodes) (toEncoder encodes) where
 -- When encoding, the input value is encoded with both codecs and the
 -- results are concatenated. When decoding, the remaining bytestring
 -- from the first codec is used as input to the second.
-(<:>) :: Monoid b => GCodec i b d1 e -> GCodec i b d2 e -> GCodec i b (d1, d2) e
-c1 <:> c2 = Codec decoder (encoderOf c1 <> encoderOf c2) where
+(<:>) :: Monoid b => GCodec i b e d1 -> GCodec i b e d2 -> GCodec i b e (d1, d2)
+c1 <:> c2 = Codec (encoderOf c1 <> encoderOf c2) decoder where
   decoder = do
     x <- decoderOf c1
     y <- decoderOf c2
@@ -31,76 +31,75 @@ c1 <:> c2 = Codec decoder (encoderOf c1 <> encoderOf c2) where
 
 -- | Sequential composition of codecs, combining the results of
 -- decoding monoidally.
-(<<:>>) :: (Monoid b, Monoid d) => GCodec i b d e -> GCodec i b d e -> GCodec i b d e
-c1 <<:>> c2 = Codec (uncurry (<>) <$> decoderOf cx) (encoderOf cx) where
+(<<:>>) :: (Monoid b, Monoid d) => GCodec i b e d -> GCodec i b e d -> GCodec i b e d
+c1 <<:>> c2 = Codec (encoderOf cx) (uncurry (<>) <$> decoderOf cx) where
   cx = c1 <:> c2
 
 -- | Right-biased sequential composition of codecs.
 --
 -- Encoding behaviour is the same as '<:>', decoding throws away the
 -- result of the first codec.
-(<:>>) :: Monoid b => GCodec i b d1 e -> GCodec i b d2 e -> GCodec i b d2 e
-c1 <:>> c2 = Codec (snd <$> decoderOf cx) (encoderOf cx) where
+(<:>>) :: Monoid b => GCodec i b e d1 -> GCodec i b e d2 -> GCodec i b e d2
+c1 <:>> c2 = Codec (encoderOf cx) (snd <$> decoderOf cx) where
   cx = c1 <:> c2
 
 -- | Left-biased sequential composition of codecs.
 --
 -- Encoding behaviour is the same as '<:>', decoding throws away the
 -- result of the second codec.
-(<<:>) :: Monoid b => GCodec i b d1 e -> GCodec i b d2 e -> GCodec i b d1 e
-c1 <<:> c2 = Codec (fst <$> decoderOf cx) (encoderOf cx) where
+(<<:>) :: Monoid b => GCodec i b e d1 -> GCodec i b e d2 -> GCodec i b e d1
+c1 <<:> c2 = Codec (encoderOf cx) (fst <$> decoderOf cx) where
   cx = c1 <:> c2
 
 -- | Combine two codecs into a codec for tuples of those types, where
 -- the encoded forms of each element are concatenated.
-(<++>) :: Monoid b => GCodec i b d1 e1 -> GCodec i b d2 e2 -> GCodec i b (d1, d2) (e1, e2)
+(<++>) :: Monoid b => GCodec i b e1 d1 -> GCodec i b e2 d2 -> GCodec i b (e1, e2) (d1, d2)
 (<++>) = separate id id
 
 -- | Lift a codec over a type to over a list of that type.
 --
 -- Encoded elements are concatenated. Decoding never fails, as an
 -- empty list is acceptable.
-elementwise :: Monoid b => GCodec i b d e -> GCodec i b [d] [e]
-elementwise c = Codec decoder encoder where
+elementwise :: Monoid b => GCodec i b e d -> GCodec i b [e] [d]
+elementwise c = Codec encoder decoder where
+  encoder = toEncoder go where
+    go = getBoth . foldr ((<>) . Both . runEncoder (encoderOf c)) mempty
+
   decoder = toDecoder $ go [] where
     go ds b = case runDecoder (decoderOf c) b of
       Just (d, b') -> go (d:ds) b'
       Nothing -> Just (reverse ds, b)
 
-  encoder = toEncoder go where
-    go = getBoth . foldr ((<>) . Both . runEncoder (encoderOf c)) mempty
-
 -- | Encode a value as a combination of header and encoded value. The
 -- codec used for encoding/decoding the value itself receives the
 -- (encoded/decoded) header as a parameter.
-header :: Monoid b => (e -> h) -> GCodec i b h h -> (h -> GCodec i b d e) -> GCodec i b d e
-header hf hc cf = Codec decoder encoder where
-  decoder = decoderOf hc >>= decoderOf . cf
+header :: Monoid b => (e -> h) -> GCodec i b h h -> (h -> GCodec i b e d) -> GCodec i b e d
+header hf hc cf = Codec encoder decoder where
   encoder = toEncoder $ \e -> getBoth $
     let h = hf e
      in Both (runEncoder (encoderOf hc) h) <> Both (runEncoder (encoderOf $ cf h) e)
+
+  decoder = decoderOf hc >>= decoderOf . cf
 
 -- | Apply a divide-and-conquer approach: given a function to split up
 -- the encoding into two smaller components, and a function to combine
 -- the smaller components after decoding, construct a codec for the
 -- more complex type.
-separate :: Monoid b => (e -> (e1, e2)) -> ((d1, d2) -> d) -> GCodec i b d1 e1 -> GCodec i b d2 e2 -> GCodec i b d e
-separate split merge c1 c2 = Codec decoder encoder where
+separate :: Monoid b => (e -> (e1, e2)) -> ((d1, d2) -> d) -> GCodec i b e1 d1 -> GCodec i b e2 d2 -> GCodec i b e d
+separate split merge c1 c2 = Codec encoder decoder where
+  encoder = divide split (encoderOf c1) (encoderOf c2)
   decoder = do
     x <- decoderOf c1
     y <- decoderOf c2
     return $ merge (x, y)
 
-  encoder = divide split (encoderOf c1) (encoderOf c2)
-
 -- | Given functions to convert the types, wrap one codec inside another.
 --
 -- Encoding and decoding will fail if the function does, even if the
 -- inner codec succeeds.
-wrap  :: (d' -> Maybe d) -> (e -> Maybe e') -> GCodec i b d' e' -> GCodec i b d e
-wrap df ef c = Codec decoder encoder where
+wrap  :: (d' -> Maybe d) -> (e -> Maybe e') -> GCodec i b e' d' -> GCodec i b e d
+wrap df ef c = Codec encoder decoder where
+  encoder = toEncoder $ ef >=> runEncoder (encoderOf c)
   decoder = toDecoder $ \b -> case runDecoder (decoderOf c) b of
     Just (d, b') -> (\d' -> (d',b')) <$> df d
     Nothing -> Nothing
-
-  encoder = toEncoder $ ef >=> runEncoder (encoderOf c)

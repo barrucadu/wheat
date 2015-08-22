@@ -37,8 +37,8 @@ type Codec a = Codec' a a
 
 -- | A more general codec where we are covariant in the type we encode
 -- but contravariant in the type we decode.
-type Codec'     d e = GCodec L.ByteString B.Builder d e
-data GCodec i b d e = Codec { decoderOf :: GDecoder i d, encoderOf :: GEncoder b e }
+type Codec'     e d = GCodec L.ByteString B.Builder e d
+data GCodec i b e d = Codec { encoderOf :: GEncoder b e, decoderOf :: GDecoder i d }
 
 -- * Decoders
 
@@ -57,7 +57,7 @@ runDecoder :: GDecoder i a -> i -> Maybe (a, i)
 runDecoder d = getBoth . runStateT d
 
 -- | Run a codec's decoder.
-decode :: GCodec i b d e -> i -> Maybe d
+decode :: GCodec i b e d -> i -> Maybe d
 decode c = fmap fst . runDecoder (decoderOf c)
 
 -- * Encoders
@@ -77,7 +77,7 @@ runEncoder :: GEncoder b a -> a -> Maybe b
 runEncoder e = getBoth . getOp e
 
 -- | Run a codec's encoder.
-encode :: GCodec i b d e -> e -> Maybe b
+encode :: GCodec i b e d -> e -> Maybe b
 encode c = runEncoder $ encoderOf c
 
 -- * 'Both' Monoid
