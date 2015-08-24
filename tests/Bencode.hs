@@ -24,23 +24,27 @@
 -- legal encoding for a given data structure.
 module Bencode where
 
-import Control.Applicative
-import Data.ByteString.Builder
-import Data.Functor.Contravariant
-import Data.List
-import Data.Monoid
-import Data.Ord
-import Data.Profunctor
-import Data.Wheat
-import GHC.Generics
-import Test.SmallCheck.Series
-import Test.SmallCheck.Series.Instances ()
-import Test.Tasty
-import Test.Tasty.SmallCheck
-
-import Utils
+-- For the implementation of Bencoding.
+import Data.List (sortBy)
+import Data.Monoid ((<>))
+import Data.Ord (comparing)
+import Data.Profunctor (lmap)
+import GHC.Generics (Generic)
 
 import qualified Data.ByteString as S
+
+-- For the test case. Smallcheck is used with Tasty to generate
+-- progressively larger examples to try. This does mean a lot of tests
+-- are generated for the recursive cases ('BList' and 'BDict'), but
+-- failing cases should be minimal.
+import Test.SmallCheck.Series (Serial(..))
+import Test.SmallCheck.Series.Instances ()
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.SmallCheck (testProperty)
+
+-- Local imports
+import Data.Wheat
+import Utils
 
 -- * Tests
 

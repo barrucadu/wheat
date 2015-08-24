@@ -1,18 +1,20 @@
 -- | A collection of commonly-used codecs.
 module Data.Wheat.Codecs where
 
-import Control.Applicative
-import Control.Arrow
-import Control.Monad
-import Data.Foldable
-import Data.Maybe
-import Data.Monoid
-import Data.Wheat.Combinators
-import Data.Wheat.Types
+import Control.Applicative ((<$>))
+import Control.Arrow (first)
+import Control.Monad (void)
+import Data.Maybe (fromMaybe)
+import Data.List (foldl')
+import Data.Monoid ((<>), mempty)
 
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
+
+-- Local imports
+import Data.Wheat.Combinators
+import Data.Wheat.Types
 
 -- * ByteStrings
 

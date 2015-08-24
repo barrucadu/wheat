@@ -38,13 +38,16 @@
 
 module CTCP where
 
-import Data.ByteString
-import Data.ByteString.Builder
-import Data.Wheat
-import Test.SmallCheck.Series.Instances ()
-import Test.Tasty
-import Test.Tasty.SmallCheck
+-- For the implementation of CTCP coding.
+import Data.ByteString (ByteString, pack)
 
+-- For the test case.
+import Test.SmallCheck.Series.Instances ()
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.SmallCheck (testProperty)
+
+-- Local imports
+import Data.Wheat
 import Utils
 
 -- * Tests

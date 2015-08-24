@@ -2,13 +2,13 @@
 -- codecs.
 module Data.Wheat.Combinators where
 
-import Control.Applicative
-import Control.Monad
-import Data.Functor.Contravariant.Divisible
-import Data.Monoid
-import Data.Wheat.Types
+import Control.Applicative ((<$>))
+import Control.Monad ((>=>))
+import Data.Functor.Contravariant.Divisible (divide)
+import Data.Monoid (Monoid, (<>), mempty)
 
--- * Combinators
+-- Local imports
+import Data.Wheat.Types
 
 -- | Sequential composition of codecs.
 --

@@ -15,20 +15,30 @@
 -- types along with a function to split the whole.
 module Data.Wheat.Types where
 
-import Control.Applicative
-import Control.Monad
-import Control.Monad.Trans.State
-import Data.Data
-import Data.Foldable
-import Data.Functor.Contravariant
-import Data.Monoid
-import Data.Profunctor
-import Data.Traversable
-import GHC.Generics
+-- For codecs
+import Control.Applicative ((<$>), (<|>))
+import Data.Functor.Contravariant ((>$<))
+import Data.Monoid (Monoid(..))
+import Data.Profunctor (Profunctor(..))
 
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Semigroup as G
+
+-- For decoders
+import Control.Monad.Trans.State (StateT(..))
+
+-- For encoders
+import Data.Functor.Contravariant (Op(..))
+
+-- For the Both type
+import Control.Applicative (Applicative(..), Alternative(..))
+import Control.Monad (MonadPlus(..))
+import Data.Data (Data(..))
+import Data.Foldable (Foldable(..))
+import Data.Traversable (Traversable(..))
+import Data.Typeable (Typeable)
+import GHC.Generics (Generic(..), Generic1(..))
 
 -- * Codecs
 
