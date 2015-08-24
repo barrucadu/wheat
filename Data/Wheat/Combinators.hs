@@ -10,13 +10,6 @@ import Data.Wheat.Types
 
 -- * Combinators
 
--- | Prioritised choice between codecs. If the left one fails the
--- right one will be tried.
-(<||>) :: GCodec i b e d -> GCodec i b e d -> GCodec i b e d
-this <||> other = Codec (toEncoder encodes) (toDecoder decodes) where
-  decodes b = runDecoder (decoderOf this) b <|> runDecoder (decoderOf other) b
-  encodes e = runEncoder (encoderOf this) e <|> runEncoder (encoderOf other) e
-
 -- | Sequential composition of codecs.
 --
 -- When encoding, the input value is encoded with both codecs and the

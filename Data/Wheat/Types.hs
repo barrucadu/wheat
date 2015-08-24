@@ -28,6 +28,7 @@ import GHC.Generics
 
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Lazy as L
+import qualified Data.Semigroup as G
 
 -- * Codecs
 
@@ -38,12 +39,25 @@ type Codec a = Codec' a a
 
 -- | A more general codec where we are covariant in the type we encode
 -- but contravariant in the type we decode.
+--
+-- The Semigroup and Monoid instances represent left-biased choice. If
+-- the left codec fails, the right will be tried.
 type Codec'     e d = GCodec L.ByteString B.Builder e d
 data GCodec i b e d = Codec { encoderOf :: GEncoder b e, decoderOf :: GDecoder i d }
 
 instance Profunctor (GCodec i b) where
   lmap f c = c { encoderOf = f >$< encoderOf c }
   rmap f c = c { decoderOf = f <$> decoderOf c }
+
+instance G.Semigroup (GCodec i b e d) where
+  this <> other = Codec (toEncoder encodes) (toDecoder decodes) where
+    decodes b = runDecoder (decoderOf this) b <|> runDecoder (decoderOf other) b
+    encodes e = runEncoder (encoderOf this) e <|> runEncoder (encoderOf other) e
+
+-- | 'mempty' is the codec which always fails.
+instance Monoid (GCodec i b e d) where
+  mappend = (G.<>)
+  mempty  = Codec (toEncoder $ const Nothing) (toDecoder $ const Nothing)
 
 -- * Decoders
 
@@ -94,5 +108,5 @@ newtype Both a = Both { getBoth :: Maybe a }
 
 instance Monoid a => Monoid (Both a) where
   mempty = Both $ Just mempty
-  mappend (Both (Just x)) (Both (Just y)) = Both . Just $ x <> y
+  mappend (Both (Just x)) (Both (Just y)) = Both . Just $ x `mappend` y
   mappend _ _ = Both Nothing

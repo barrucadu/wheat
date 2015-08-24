@@ -27,6 +27,7 @@ library
                      , bytestring
                      , contravariant
                      , profunctors
+                     , semigroups
                      , transformers
                      , void
   -- hs-source-dirs:      

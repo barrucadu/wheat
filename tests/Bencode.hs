@@ -28,6 +28,7 @@ import Control.Applicative
 import Data.ByteString.Builder
 import Data.Functor.Contravariant
 import Data.List
+import Data.Monoid
 import Data.Ord
 import Data.Profunctor
 import Data.Wheat
@@ -70,10 +71,10 @@ instance Monad m => Serial m BValue
 
 bencode :: Codec BValue
 bencode =
-  (wrap (Just . BInt)   (\case { BInt   i -> Just i; _ -> Nothing }) bencodeInt)   <||>
-  (wrap (Just . BBytes) (\case { BBytes b -> Just b; _ -> Nothing }) bencodeBytes) <||>
-  (wrap (Just . BList)  (\case { BList  l -> Just l; _ -> Nothing }) bencodeList)  <||>
-  (wrap (Just . BDict)  (\case { BDict  d -> Just d; _ -> Nothing }) bencodeDict)
+  wrap (Just . BInt)   (\case { BInt   i -> Just i; _ -> Nothing }) bencodeInt   <>
+  wrap (Just . BBytes) (\case { BBytes b -> Just b; _ -> Nothing }) bencodeBytes <>
+  wrap (Just . BList)  (\case { BList  l -> Just l; _ -> Nothing }) bencodeList  <>
+  wrap (Just . BDict)  (\case { BDict  d -> Just d; _ -> Nothing }) bencodeDict
 
 bencodeInt :: Codec Int
 bencodeInt = constant "i" <:>> asciiDigits <<:> constant "e"
