@@ -34,8 +34,8 @@ import Data.Functor.Contravariant (Op(..))
 -- type.
 type Codec a = Codec' a a
 
--- | A more general codec where we are covariant in the type we encode
--- but contravariant in the type we decode.
+-- | A more general codec where we are contravariant in the type we
+-- encode but covariant in the type we decode.
 --
 -- The Semigroup and Monoid instances represent left-biased choice. If
 -- the left codec fails, the right will be tried.
