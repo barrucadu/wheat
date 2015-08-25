@@ -1,8 +1,3 @@
-{-# LANGUAGE DeriveDataTypeable         #-}
-{-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE DeriveTraversable          #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 -- | Wheat is based around bidirectional codecs, although they are not
 -- constrained to deocde to the same type they decode (see
 -- 'Codec''). For the common case, these two type parameters will be
@@ -26,19 +21,11 @@ import qualified Data.ByteString.Lazy as L
 import qualified Data.Semigroup as G
 
 -- For decoders
+import Data.Both (Both(..))
 import Control.Monad.Trans.State (StateT(..))
 
 -- For encoders
 import Data.Functor.Contravariant (Op(..))
-
--- For the Both type
-import Control.Applicative (Applicative(..), Alternative(..))
-import Control.Monad (MonadPlus(..))
-import Data.Data (Data(..))
-import Data.Foldable (Foldable(..))
-import Data.Traversable (Traversable(..))
-import Data.Typeable (Typeable)
-import GHC.Generics (Generic(..), Generic1(..))
 
 -- * Codecs
 
@@ -79,11 +66,19 @@ type GDecoder i a = StateT i Both a
 
 -- | Construct a decoder.
 toDecoder :: (i -> Maybe (a, i)) -> GDecoder i a
-toDecoder f = StateT $ Both . f
+toDecoder f = toDecoder' $ Both . f
+
+-- | Variant of 'toDecoder'.
+toDecoder' :: (i -> Both (a, i)) -> GDecoder i a
+toDecoder' = StateT
 
 -- | Run a decoder.
 runDecoder :: GDecoder i a -> i -> Maybe (a, i)
-runDecoder d = getBoth . runStateT d
+runDecoder d = getBoth . runDecoder' d
+
+-- | Variant of 'runDecoder'
+runDecoder' :: GDecoder i a -> i -> Both (a, i)
+runDecoder' = runStateT
 
 -- | Run a codec's decoder.
 decode :: GCodec i b e d -> i -> Maybe d
@@ -99,24 +94,20 @@ type GEncoder b a = Op (Both b) a
 
 -- | Construct an encoder.
 toEncoder :: (a -> Maybe b) -> GEncoder b a
-toEncoder f = Op $ Both . f
+toEncoder f = toEncoder' $ Both . f
 
--- | Run a decoder.
+-- | Variant of 'toEncoder'.
+toEncoder' :: (a -> Both b) -> GEncoder b a
+toEncoder' = Op
+
+-- | Run an encoder.
 runEncoder :: GEncoder b a -> a -> Maybe b
-runEncoder e = getBoth . getOp e
+runEncoder e = getBoth . runEncoder' e
+
+-- | Variant of 'runEncoder'.
+runEncoder' :: GEncoder b a -> a -> Both b
+runEncoder' = getOp
 
 -- | Run a codec's encoder.
 encode :: GCodec i b e d -> e -> Maybe b
 encode c = runEncoder $ encoderOf c
-
--- * 'Both' Monoid
-
--- |The 'Both' Monoid is like 'Maybe', but requires both of its
--- arguments to be 'Just' or the result will be 'Nothing'.
-newtype Both a = Both { getBoth :: Maybe a }
-  deriving (Eq, Ord, Read, Show, Data, Typeable, Generic, Generic1, Functor, Applicative, Alternative, Monad, MonadPlus, Foldable, Traversable)
-
-instance Monoid a => Monoid (Both a) where
-  mempty = Both $ Just mempty
-  mappend (Both (Just x)) (Both (Just y)) = Both . Just $ x `mappend` y
-  mappend _ _ = Both Nothing

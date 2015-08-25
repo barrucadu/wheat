@@ -4,8 +4,9 @@ module Data.Wheat.Combinators where
 
 import Control.Applicative ((<$>))
 import Control.Monad ((>=>))
+import Data.Foldable (foldMap)
 import Data.Functor.Contravariant.Divisible (divide)
-import Data.Monoid (Monoid, (<>), mempty)
+import Data.Monoid (Monoid, (<>))
 
 -- Local imports
 import Data.Wheat.Types
@@ -55,8 +56,8 @@ c1 <<:> c2 = Codec (encoderOf cx) (fst <$> decoderOf cx) where
 -- empty list is acceptable.
 elementwise :: Monoid b => GCodec i b e d -> GCodec i b [e] [d]
 elementwise c = Codec encoder decoder where
-  encoder = toEncoder go where
-    go = getBoth . foldr ((<>) . Both . runEncoder (encoderOf c)) mempty
+  encoder = toEncoder' go where
+    go = foldMap (runEncoder' $ encoderOf c)
 
   decoder = toDecoder $ go [] where
     go ds b = case runDecoder (decoderOf c) b of
@@ -68,9 +69,9 @@ elementwise c = Codec encoder decoder where
 -- (encoded/decoded) header as a parameter.
 header :: Monoid b => (e -> h) -> GCodec i b h h -> (h -> GCodec i b e d) -> GCodec i b e d
 header hf hc cf = Codec encoder decoder where
-  encoder = toEncoder $ \e -> getBoth $
+  encoder = toEncoder' $ \e ->
     let h = hf e
-     in Both (runEncoder (encoderOf hc) h) <> Both (runEncoder (encoderOf $ cf h) e)
+     in runEncoder' (encoderOf hc) h <> runEncoder' (encoderOf $ cf h) e
 
   decoder = decoderOf hc >>= decoderOf . cf
 
