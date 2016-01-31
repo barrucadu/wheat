@@ -8,4 +8,4 @@ extra-deps:
 - smallcheck-series-0.4
 - both-0.1.0.0
 
-resolver: nightly-2015-08-24
+resolver: lts-4.2
